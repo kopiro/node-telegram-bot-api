@@ -19,6 +19,7 @@ class TelegramBotWebHook {
     this.options.host = this.options.host || '0.0.0.0';
     this.options.port = this.options.port || 8443;
     this.options.https = this.options.https || {};
+    this.options.spawnServer = this.options.spawnServer !== undefined ? this.options.spawnServer : true;
     this.options.healthEndpoint = this.options.healthEndpoint || '/healthz';
     this._healthRegex = new RegExp(this.options.healthEndpoint);
     this._webServer = null;
@@ -26,21 +27,25 @@ class TelegramBotWebHook {
     this._requestListener = this._requestListener.bind(this);
     this._parseBody = this._parseBody.bind(this);
 
-    if (this.options.key && this.options.cert) {
-      debug('HTTPS WebHook enabled (by key/cert)');
-      this.options.https.key = fs.readFileSync(this.options.key);
-      this.options.https.cert = fs.readFileSync(this.options.cert);
-      this._webServer = https.createServer(this.options.https, this._requestListener);
-    } else if (this.options.pfx) {
-      debug('HTTPS WebHook enabled (by pfx)');
-      this.options.https.pfx = fs.readFileSync(this.options.pfx);
-      this._webServer = https.createServer(this.options.https, this._requestListener);
-    } else if (Object.keys(this.options.https).length) {
-      debug('HTTPS WebHook enabled by (https)');
-      this._webServer = https.createServer(this.options.https, this._requestListener);
+    if (this.options.spawnServer) {
+      if (this.options.key && this.options.cert) {
+        debug('HTTPS WebHook enabled (by key/cert)');
+        this.options.https.key = fs.readFileSync(this.options.key);
+        this.options.https.cert = fs.readFileSync(this.options.cert);
+        this._webServer = https.createServer(this.options.https, this._requestListener);
+      } else if (this.options.pfx) {
+        debug('HTTPS WebHook enabled (by pfx)');
+        this.options.https.pfx = fs.readFileSync(this.options.pfx);
+        this._webServer = https.createServer(this.options.https, this._requestListener);
+      } else if (Object.keys(this.options.https).length) {
+        debug('HTTPS WebHook enabled by (https)');
+        this._webServer = https.createServer(this.options.https, this._requestListener);
+      } else {
+        debug('HTTP WebHook enabled');
+        this._webServer = http.createServer(this._requestListener);
+      }
     } else {
-      debug('HTTP WebHook enabled');
-      this._webServer = http.createServer(this._requestListener);
+      debug('You must spawn your server manually then attach the middleware');
     }
   }
 
@@ -49,6 +54,9 @@ class TelegramBotWebHook {
    * @return {Promise}
    */
   open() {
+    if (this.options.spawnServer == false) {
+      return Promise.resolve();
+    }
     if (this.isOpen()) {
       return Promise.resolve();
     }
@@ -66,6 +74,9 @@ class TelegramBotWebHook {
    * @return {Promise}
    */
   close() {
+    if (this.options.spawnServer == false) {
+      return Promise.resolve();
+    }
     if (!this.isOpen()) {
       return Promise.resolve();
     }
@@ -150,6 +161,10 @@ class TelegramBotWebHook {
       res.statusCode = 401;
       res.end();
     }
+  }
+
+  getRequestListener() {
+    return this._requestListener;
   }
 }
 
